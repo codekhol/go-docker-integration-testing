@@ -1,0 +1,52 @@
+version: "3.3"
+services:
+  postgres:
+    image: postgres:13
+    restart: always
+    environment:
+      POSTGRES_DB: test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U test" ]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+    networks:
+      - test-network
+
+  migrate:
+    image: migrate/migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./db/migrations:/migrations
+    command: "-path /migrations -database postgresql://test:test@postgres/test?sslmode=disable up"
+    networks:
+      - test-network
+
+  test:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: tail -f /dev/null
+    # command: go test -v ./...
+    networks:
+      - test-network
+
+  run:
+    build: .
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # command: "go run ."
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
